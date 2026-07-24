@@ -1,0 +1,192 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap");
+
+:root {
+  --base: 237 239 242;
+  --surface: 255 255 255;
+  --surface-2: 245 247 250;
+  --line: 218 223 230;
+  --ink: 20 23 28;
+  --ink-2: 62 70 82;
+  --muted: 116 126 140;
+  --accent: 15 110 99;
+  --accent-2: 26 148 133;
+  --flag: 224 160 48;
+  --danger: 195 66 63;
+}
+
+:root[data-theme="dark"] {
+  --base: 20 23 28;
+  --surface: 27 31 38;
+  --surface-2: 34 39 48;
+  --line: 52 60 72;
+  --ink: 232 236 242;
+  --ink-2: 190 197 208;
+  --muted: 138 148 162;
+  --accent: 63 191 168;
+  --accent-2: 122 214 196;
+  --flag: 234 178 82;
+  --danger: 220 108 106;
+}
+
+html,
+body {
+  background-color: rgb(var(--base));
+  color: rgb(var(--ink));
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: "Inter", system-ui, sans-serif;
+  font-feature-settings: "cv11", "ss01";
+}
+
+::selection {
+  background: rgb(var(--accent) / 0.22);
+}
+
+.font-display {
+  font-family: "Instrument Serif", Georgia, serif;
+  letter-spacing: -0.01em;
+}
+
+.hairline {
+  border-color: rgb(var(--line));
+}
+
+.scan-line {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: inherit;
+}
+.scan-line::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 34%;
+  top: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgb(var(--accent) / 0.05) 30%,
+    rgb(var(--accent) / 0.24) 50%,
+    rgb(var(--accent) / 0.05) 70%,
+    transparent 100%
+  );
+  animation: sweep 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scan-line::before {
+    animation: none;
+    opacity: 0.15;
+  }
+  .animate-pinDrop,
+  .animate-pulse2,
+  .animate-fadeIn {
+    animation: none !important;
+  }
+}
+
+/* Focus */
+:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Utility */
+.card {
+  background-color: rgb(var(--surface));
+  border: 1px solid rgb(var(--line));
+  border-radius: 14px;
+}
+.card-quiet {
+  background-color: rgb(var(--surface-2));
+  border: 1px solid rgb(var(--line));
+  border-radius: 14px;
+}
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgb(var(--line));
+  color: rgb(var(--ink-2));
+  background: rgb(var(--surface-2));
+}
+.tag.flag {
+  background: rgb(var(--flag) / 0.12);
+  color: rgb(var(--flag));
+  border-color: rgb(var(--flag) / 0.4);
+}
+.tag.accent {
+  background: rgb(var(--accent) / 0.1);
+  color: rgb(var(--accent));
+  border-color: rgb(var(--accent) / 0.35);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-weight: 500;
+  font-size: 14px;
+  transition: transform 120ms ease, background-color 120ms ease;
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.btn-primary {
+  background: rgb(var(--accent));
+  color: white;
+}
+.btn-primary:hover {
+  background: rgb(var(--accent-2));
+}
+.btn-ghost {
+  background: transparent;
+  color: rgb(var(--ink));
+  border: 1px solid rgb(var(--line));
+}
+.btn-ghost:hover {
+  background: rgb(var(--surface-2));
+}
+
+.input {
+  width: 100%;
+  background: rgb(var(--surface));
+  color: rgb(var(--ink));
+  border: 1px solid rgb(var(--line));
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.input::placeholder {
+  color: rgb(var(--muted));
+}
+.input:hover {
+  border-color: rgb(var(--muted) / 0.6);
+}
+.input:focus {
+  border-color: rgb(var(--accent));
+  background: rgb(var(--surface));
+  outline: none;
+  box-shadow: 0 0 0 3px rgb(var(--accent) / 0.15);
+}
