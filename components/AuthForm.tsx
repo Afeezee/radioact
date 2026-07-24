@@ -14,7 +14,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<DemoSession["role"]>("radiographer");
+  const [role, setRole] = useState<DemoSession["role"]>("patient");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -95,18 +95,24 @@ export function AuthForm({ mode }: { mode: Mode }) {
       </Field>
       {mode === "signup" && (
         <Field label="Your role">
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <RoleChip
-              active={role === "radiographer"}
-              onClick={() => setRole("radiographer")}
-              label="Radiographer"
-              hint="I acquire scans"
+              active={role === "patient"}
+              onClick={() => setRole("patient")}
+              label="Patient"
+              hint="I upload scans"
             />
             <RoleChip
               active={role === "clinician"}
               onClick={() => setRole("clinician")}
               label="Clinician"
               hint="I review findings"
+            />
+            <RoleChip
+              active={role === "admin"}
+              onClick={() => setRole("admin")}
+              label="Admin"
+              hint="I manage users"
             />
           </div>
         </Field>

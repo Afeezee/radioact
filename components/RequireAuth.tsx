@@ -3,7 +3,13 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
 import { getSession } from "@/lib/session";
-import { extractRole, homeForRole, type Role } from "@/lib/role";
+import {
+  canAccess,
+  extractRole,
+  homeForRole,
+  type Role,
+} from "@/lib/role";
+import { useEffectiveRole } from "@/lib/useEffectiveRole";
 
 const HAS_CLERK = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
@@ -32,8 +38,9 @@ function ClerkGuard({
   const { user, isLoaded: userLoaded } = useUser();
   const router = useRouter();
   const pathname = usePathname();
+  const { role: effectiveRole } = useEffectiveRole();
 
-  const role = user ? extractRole(user) : undefined;
+  const actualRole = user ? extractRole(user) : undefined;
 
   useEffect(() => {
     if (!authLoaded || !userLoaded) return;
@@ -42,27 +49,36 @@ function ClerkGuard({
       router.replace(`/signin?redirect_url=${next}`);
       return;
     }
-    if (!role) {
+    if (!actualRole) {
       // Signed in but hasn't picked a role yet.
       router.replace("/onboarding");
       return;
     }
-    if (role === "pending_clinician" && pathname !== "/onboarding") {
+    if (actualRole === "pending_clinician" && pathname !== "/onboarding") {
       // Pending clinicians can only see the onboarding/pending page.
       router.replace("/onboarding");
       return;
     }
-    if (requiredRole && role !== requiredRole) {
-      router.replace(homeForRole(role));
+    if (requiredRole && !canAccess(actualRole, requiredRole)) {
+      router.replace(homeForRole(effectiveRole));
     }
-  }, [authLoaded, userLoaded, isSignedIn, role, requiredRole, pathname, router]);
+  }, [
+    authLoaded,
+    userLoaded,
+    isSignedIn,
+    actualRole,
+    effectiveRole,
+    requiredRole,
+    pathname,
+    router,
+  ]);
 
   // Pending clinicians: show them a waiting state.
   if (
     authLoaded &&
     userLoaded &&
     isSignedIn &&
-    role === "pending_clinician"
+    actualRole === "pending_clinician"
   ) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
@@ -85,9 +101,9 @@ function ClerkGuard({
     authLoaded &&
     userLoaded &&
     isSignedIn &&
-    !!role &&
-    role !== "pending_clinician" &&
-    (!requiredRole || role === requiredRole);
+    !!actualRole &&
+    actualRole !== "pending_clinician" &&
+    (!requiredRole || canAccess(actualRole, requiredRole));
 
   if (!ready) {
     return (

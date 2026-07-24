@@ -25,7 +25,7 @@ export async function getAuthContext(): Promise<{
   userId: string;
   role: ServerRole;
 }> {
-  if (!hasClerk()) return { userId: "anon", role: "unknown" };
+  if (!hasClerk()) return { userId: "anon", role: "admin" }; // Demo mode acts as admin
   try {
     const { auth, currentUser } = await import("@clerk/nextjs/server");
     const a = await auth();

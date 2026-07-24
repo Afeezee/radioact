@@ -32,3 +32,10 @@ export function homeForRole(role: MaybeRole): string {
   if (role === "clinician") return "/app/clinic";
   return "/app";
 }
+
+/** True when `actualRole` is allowed to enter a route gated to `requiredRole`.
+ *  Admins are always allowed through so they can move between all app areas. */
+export function canAccess(actualRole: MaybeRole, requiredRole: Role): boolean {
+  if (actualRole === "admin") return true;
+  return actualRole === requiredRole;
+}

@@ -1,12 +1,51 @@
 import { NextResponse } from "next/server";
 import { clerkClient } from "@clerk/nextjs/server";
 import { isAdmin } from "@/lib/serverAuth";
+import { hasClerk } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
 export async function GET() {
   if (!(await isAdmin())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!hasClerk()) {
+    // Return dummy data for demo mode
+    return NextResponse.json({
+      users: [
+        {
+          id: "demo_patient",
+          email: "patient@demo.com",
+          firstName: "Demo",
+          lastName: "Patient",
+          name: "Demo Patient",
+          role: "patient",
+          createdAt: new Date().toISOString(),
+          lastSignInAt: new Date().toISOString(),
+        },
+        {
+          id: "demo_clinician",
+          email: "clinician@demo.com",
+          firstName: "Demo",
+          lastName: "Clinician",
+          name: "Demo Clinician",
+          role: "clinician",
+          createdAt: new Date().toISOString(),
+          lastSignInAt: new Date().toISOString(),
+        },
+        {
+          id: "demo_pending",
+          email: "pending@demo.com",
+          firstName: "Demo",
+          lastName: "Pending",
+          name: "Demo Pending",
+          role: "pending_clinician",
+          createdAt: new Date().toISOString(),
+          lastSignInAt: new Date().toISOString(),
+        }
+      ]
+    });
   }
 
   try {

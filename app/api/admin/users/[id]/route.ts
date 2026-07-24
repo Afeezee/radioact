@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { clerkClient } from "@clerk/nextjs/server";
 import { isAdmin } from "@/lib/serverAuth";
+import { hasClerk } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -11,6 +12,7 @@ export async function DELETE(
   if (!(await isAdmin())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  if (!hasClerk()) return NextResponse.json({ success: true });
 
   const { id } = await params;
 
@@ -31,6 +33,7 @@ export async function PATCH(
   if (!(await isAdmin())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  if (!hasClerk()) return NextResponse.json({ success: true });
 
   const { id } = await params;
   

@@ -45,6 +45,6 @@ export function useCurrentPatient(): CurrentIdentity {
     ready: true,
     patientId: `p_demo_${s.email.replace(/[^a-z0-9]/gi, "_").slice(0, 20)}`,
     patientName: s.name,
-    role: s.role === "clinician" ? "clinician" : "patient",
+    role: s.role === "clinician" ? "clinician" : s.role === "admin" ? "admin" : "patient",
   };
 }

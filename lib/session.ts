@@ -6,7 +6,7 @@
 export interface DemoSession {
   name: string;
   email: string;
-  role: "clinician" | "radiographer";
+  role: "patient" | "clinician" | "admin";
   createdAt: string;
 }
 
@@ -25,6 +25,17 @@ export function getSession(): DemoSession | null {
 
 export function setSession(s: DemoSession) {
   window.localStorage.setItem(KEY, JSON.stringify(s));
+}
+
+export function setSessionRole(role: DemoSession["role"]) {
+  const s = getSession();
+  if (!s) return;
+  setSession({ ...s, role });
+}
+
+/** Type-narrowing helper for the role switcher. */
+export function isDemoRole(role: string): role is DemoSession["role"] {
+  return role === "patient" || role === "clinician" || role === "admin";
 }
 
 export function clearSession() {

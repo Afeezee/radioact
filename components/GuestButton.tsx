@@ -14,7 +14,7 @@ export function GuestButton({
     setSession({
       name: "Guest",
       email: "guest@radioact.local",
-      role: "radiographer",
+      role: "admin",
       createdAt: new Date().toISOString(),
     });
     router.push("/app");

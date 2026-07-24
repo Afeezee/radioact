@@ -1,11 +1,12 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SignInButton, UserButton, useUser } from "@clerk/nextjs";
 import { Logo } from "./Logo";
 import { clearSession, getSession, type DemoSession } from "@/lib/session";
-import { extractRole } from "@/lib/role";
+import { extractRole, type Role } from "@/lib/role";
+import { useEffectiveRole, useMounted } from "@/lib/useEffectiveRole";
 
 const HAS_CLERK = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
@@ -38,6 +39,7 @@ export function AppNav() {
         </Link>
         <nav className="flex items-center gap-1 text-sm">
           <RoleAwareLinks pathname={pathname} />
+          <RoleSwitcher />
           <div className="mx-2 h-5 w-px bg-line" />
           <button
             aria-label="Toggle theme"
@@ -59,29 +61,27 @@ export function AppNav() {
 }
 
 function RoleAwareLinks({ pathname }: { pathname: string | null }) {
-  if (HAS_CLERK) return <ClerkLinks pathname={pathname} />;
-  return <DemoLinks pathname={pathname} />;
+  const mounted = useMounted();
+  const { role } = useEffectiveRole();
+  if (!mounted) return null;
+  if (!HAS_CLERK) {
+    return <NavLinks links={linksForRole(role)} pathname={pathname} />;
+  }
+  return <ClerkLinks pathname={pathname} effectiveRole={role} />;
 }
 
-function ClerkLinks({ pathname }: { pathname: string | null }) {
+function ClerkLinks({
+  pathname,
+  effectiveRole,
+}: {
+  pathname: string | null;
+  effectiveRole: Role;
+}) {
   const { user, isLoaded } = useUser();
-  const role = user ? extractRole(user) : undefined;
   if (!isLoaded) return null;
-  const links = linksForRole(role);
+  if (!user) return null;
+  const links = linksForRole(effectiveRole);
   return <NavLinks links={links} pathname={pathname} />;
-}
-
-function DemoLinks({ pathname }: { pathname: string | null }) {
-  // Without Clerk we show both links since we don't know the role.
-  return (
-    <NavLinks
-      links={[
-        { href: "/app", label: "Reader" },
-        { href: "/app/clinic", label: "Clinic" },
-      ]}
-      pathname={pathname}
-    />
-  );
 }
 
 function linksForRole(
@@ -95,6 +95,74 @@ function linksForRole(
   if (role === "clinician") return [{ href: "/app/clinic", label: "Clinic queue" }];
   if (role === "patient") return [{ href: "/app", label: "Your scans" }];
   return [];
+}
+
+function RoleSwitcher() {
+  const mounted = useMounted();
+  const { role, actualRole, canSwitch, setRole } = useEffectiveRole();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  if (!mounted) return null;
+  if (!canSwitch) return null;
+
+  const label: Record<Role, string> = {
+    patient: "Patient view",
+    clinician: "Clinician view",
+    admin: "Admin view",
+    pending_clinician: "Pending clinician",
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="btn btn-ghost !py-1.5 !px-2.5 text-xs flex items-center gap-1"
+        title={`Viewing as ${role}${actualRole === "admin" ? " (admin)" : ""}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span className="w-2 h-2 rounded-full bg-accent" />
+        {label[role]}
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+      </button>
+      {open && (
+        <div
+          className="absolute right-0 top-full mt-1.5 min-w-[10rem] rounded-lg border hairline bg-base shadow-lg z-50 py-1"
+          role="listbox"
+        >
+          {(["patient", "clinician", "admin"] as Role[]).map((r) => (
+            <button
+              key={r}
+              role="option"
+              aria-selected={r === role}
+              onClick={() => {
+                setRole(r);
+                setOpen(false);
+              }}
+              className={`w-full text-left px-3 py-2 text-xs hover:bg-surface2 flex items-center gap-2 ${
+                r === role ? "text-accent" : "text-ink2"
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${r === role ? "bg-accent" : "bg-line"}`} />
+              {label[r]}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function NavLinks({
