@@ -87,7 +87,11 @@ function DemoLinks({ pathname }: { pathname: string | null }) {
 function linksForRole(
   role: "patient" | "clinician" | "admin" | "pending_clinician" | undefined,
 ): Array<{ href: string; label: string }> {
-  if (role === "admin") return [{ href: "/app/admin", label: "Admin Dashboard" }];
+  if (role === "admin") return [
+    { href: "/app", label: "Your scans" },
+    { href: "/app/clinic", label: "Clinic queue" },
+    { href: "/app/admin", label: "Admin Dashboard" }
+  ];
   if (role === "clinician") return [{ href: "/app/clinic", label: "Clinic queue" }];
   if (role === "patient") return [{ href: "/app", label: "Your scans" }];
   return [];

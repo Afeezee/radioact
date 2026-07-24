@@ -44,6 +44,16 @@ export default function AdminDashboard() {
     setUsers(users.map(u => u.id === id ? { ...u, role: "rejected" } : u));
   }
 
+  async function changeRole(id: string, newRole: string) {
+    if (!confirm(`Change this user's role to ${newRole}?`)) return;
+    await fetch(`/api/admin/users/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role: newRole })
+    });
+    setUsers(users.map(u => u.id === id ? { ...u, role: newRole } : u));
+  }
+
   if (loading) {
     return <div className="p-10 text-center text-muted">Loading dashboard…</div>;
   }
@@ -111,13 +121,17 @@ export default function AdminDashboard() {
                     <div className="text-xs text-muted">{u.email}</div>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`tag ${
-                      u.role === "admin" ? "bg-ink text-surface" :
-                      u.role === "clinician" ? "accent" : 
-                      u.role === "pending_clinician" ? "flag" : ""
-                    }`}>
-                      {u.role.replace("_", " ")}
-                    </span>
+                    <select
+                      className="bg-surface border hairline rounded px-2 py-1 text-xs"
+                      value={u.role}
+                      onChange={(e) => changeRole(u.id, e.target.value)}
+                    >
+                      <option value="patient">Patient</option>
+                      <option value="clinician">Clinician</option>
+                      <option value="admin">Admin</option>
+                      <option value="pending_clinician">Pending Clinician</option>
+                      <option value="rejected">Rejected</option>
+                    </select>
                   </td>
                   <td className="px-4 py-3 text-xs text-muted">
                     {new Date(u.createdAt).toLocaleDateString()}
