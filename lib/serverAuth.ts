@@ -34,6 +34,12 @@ export async function getAuthContext(): Promise<{
     const user = await currentUser();
 
     // publicMetadata roles (admin, approved clinician) take priority.
+    // Hard-coded super admin bootstrap. This address always gets admin.
+    const email = user?.primaryEmailAddress?.emailAddress ?? "";
+    if (email.toLowerCase() === "cereusedtech@gmail.com") {
+      return { userId, role: "admin" };
+    }
+
     const pubRole = (user?.publicMetadata as { role?: unknown } | null)?.role;
     if (pubRole === "admin") return { userId, role: "admin" };
     if (pubRole === "clinician") return { userId, role: "clinician" };

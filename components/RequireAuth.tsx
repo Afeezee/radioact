@@ -40,7 +40,13 @@ function ClerkGuard({
   const pathname = usePathname();
   const { role: effectiveRole } = useEffectiveRole();
 
-  const actualRole = user ? extractRole(user) : undefined;
+  const actualRole = user
+    ? extractRole({
+        publicMetadata: user.publicMetadata,
+        unsafeMetadata: user.unsafeMetadata,
+        primaryEmailAddress: user.primaryEmailAddress,
+      })
+    : undefined;
 
   useEffect(() => {
     if (!authLoaded || !userLoaded) return;

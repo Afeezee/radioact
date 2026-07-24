@@ -11,7 +11,12 @@ export type MaybeRole = Role | undefined;
 export function extractRole(user: {
   unsafeMetadata?: Record<string, unknown> | null;
   publicMetadata?: Record<string, unknown> | null;
+  primaryEmailAddress?: { emailAddress?: string } | null;
 } | null | undefined): MaybeRole {
+  // Hard-coded super admin bootstrap.
+  const email = user?.primaryEmailAddress?.emailAddress ?? "";
+  if (email.toLowerCase() === "cereusedtech@gmail.com") return "admin";
+
   // publicMetadata is set server-side (admin, approved clinician) — takes priority.
   const pub = user?.publicMetadata?.role;
   if (pub === "admin" || pub === "clinician") return pub as Role;
