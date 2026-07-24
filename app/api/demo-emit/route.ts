@@ -55,15 +55,34 @@ const NAMES = ["I. Balogun", "T. Osei", "N. Mensah", "K. Diallo", "S. Adeyemi"];
 export async function POST() {
   const db = await getDB();
   const patients = await db.listPatients();
-  const patient = patients[Math.floor(Math.random() * patients.length)] ?? {
+  const chosenPatient = patients[Math.floor(Math.random() * patients.length)] ?? {
     id: "p_ambient",
     name: NAMES[Math.floor(Math.random() * NAMES.length)],
+    twinGrantToken: undefined,
+    twinId: undefined,
+    createdAt: new Date().toISOString(),
   };
+  const patient = await db.ensurePatient({
+    id: chosenPatient.id,
+    name: chosenPatient.name,
+    twinGrantToken: chosenPatient.twinGrantToken,
+    twinId: chosenPatient.twinId,
+  });
+  const ambientScanId = "s_ambient";
+  const existingScan = await db.getScan(ambientScanId);
+  if (!existingScan) {
+    await db.insertScan({
+      id: ambientScanId,
+      patientId: patient.id,
+      imageDataUrl: "data:,ambient-demo",
+      uploadedAt: new Date().toISOString(),
+    });
+  }
   const template = POOL[Math.floor(Math.random() * POOL.length)];
   const row: StoredFinding = {
     ...template,
     id: `f_${randomUUID().slice(0, 8)}`,
-    scanId: `s_ambient`,
+    scanId: ambientScanId,
     patientId: patient.id,
     patientName: patient.name,
     createdAt: new Date().toISOString(),

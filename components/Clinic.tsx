@@ -14,14 +14,28 @@ const SYSTEMS: BodySystem[] = [
 
 type ScopeKey = "queue" | "reviewed";
 
+interface TwinStreamEvent {
+  eventId: string;
+  system: BodySystem;
+  title: string;
+  data: Record<string, unknown>;
+  occurredAt: string;
+}
+
+type Selection =
+  | { kind: "finding"; id: string }
+  | { kind: "event"; id: string };
+
 export function Clinic() {
   const [scope, setScope] = useState<ScopeKey>("queue");
   const [rows, setRows] = useState<StoredFinding[]>([]);
+  const [streamEvents, setStreamEvents] = useState<TwinStreamEvent[]>([]);
   const [connected, setConnected] = useState(false);
   const [filter, setFilter] = useState<BodySystem | "all">("all");
   const [ambient, setAmbient] = useState(true);
-  const [selected, setSelected] = useState<string | undefined>();
+  const [selected, setSelected] = useState<Selection | undefined>();
   const seen = useRef(new Set<string>());
+  const seenEvents = useRef(new Set<string>());
 
   // Reload whenever the scope changes.
   useEffect(() => {
@@ -53,15 +67,26 @@ export function Clinic() {
       es.onmessage = (ev) => {
         try {
           const msg = JSON.parse(ev.data);
-          if (msg.type !== "finding") return;
-          const f = msg.finding as StoredFinding;
-          if (!statusInScope(f.status, scope)) return;
-          if (seen.current.has(f.id)) {
-            setRows((prev) => prev.map((r) => (r.id === f.id ? f : r)));
+          if (msg.type === "finding") {
+            const f = msg.finding as StoredFinding;
+            if (!statusInScope(f.status, scope)) return;
+            if (seen.current.has(f.id)) {
+              setRows((prev) => prev.map((r) => (r.id === f.id ? f : r)));
+              return;
+            }
+            seen.current.add(f.id);
+            setRows((prev) => [f, ...prev]);
             return;
           }
-          seen.current.add(f.id);
-          setRows((prev) => [f, ...prev]);
+          if (msg.type !== "twin-event") return;
+          const event = msg.event as TwinStreamEvent;
+          if (seenEvents.current.has(event.eventId)) return;
+          seenEvents.current.add(event.eventId);
+          setStreamEvents((prev) =>
+            [event, ...prev]
+              .sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt))
+              .slice(0, 60),
+          );
         } catch {
           /* ignore */
         }
@@ -87,6 +112,21 @@ export function Clinic() {
     () => (filter === "all" ? rows : rows.filter((r) => r.bodySystem === filter)),
     [rows, filter],
   );
+  const patientRows = useMemo(
+    () => filtered.filter((r) => r.scanId !== "s_ambient"),
+    [filtered],
+  );
+  const syntheticRows = useMemo(
+    () => filtered.filter((r) => r.scanId === "s_ambient"),
+    [filtered],
+  );
+  const filteredEvents = useMemo(
+    () =>
+      filter === "all"
+        ? streamEvents
+        : streamEvents.filter((event) => event.system === filter),
+    [filter, streamEvents],
+  );
 
   const counts = useMemo(() => {
     const c: Record<BodySystem, number> = {
@@ -100,8 +140,18 @@ export function Clinic() {
   }, [rows]);
 
   const active = useMemo(
-    () => rows.find((r) => r.id === selected),
+    () =>
+      selected?.kind === "finding"
+        ? rows.find((r) => r.id === selected.id)
+        : undefined,
     [rows, selected],
+  );
+  const activeEvent = useMemo(
+    () =>
+      selected?.kind === "event"
+        ? streamEvents.find((event) => event.eventId === selected.id)
+        : undefined,
+    [selected, streamEvents],
   );
 
   function upsert(updated: StoredFinding) {
@@ -123,7 +173,7 @@ export function Clinic() {
             }`}
           />
           <span className="text-sm">
-            {connected ? "Live" : "Reconnecting…"} · {rows.length} {scope === "queue" ? "in queue" : "reviewed"}
+            {connected ? "Live" : "Reconnecting…"} · {patientRows.length + syntheticRows.length} {scope === "queue" ? "in queue" : "reviewed"} · {filteredEvents.length} twin events
           </span>
           <div className="flex gap-1">
             <ScopeBtn
@@ -164,23 +214,61 @@ export function Clinic() {
           </label>
         </div>
 
-        {filtered.length === 0 ? (
+        {patientRows.length === 0 && syntheticRows.length === 0 && filteredEvents.length === 0 ? (
           <div className="card p-10 text-center text-muted text-sm">
             {scope === "queue"
               ? "No findings waiting on review right now."
               : "No reviewed findings yet."}
           </div>
         ) : (
-          <ul className="grid gap-3 md:grid-cols-2">
-            {filtered.map((f) => (
-              <FindingCard
-                key={f.id}
-                f={f}
-                active={f.id === selected}
-                onSelect={() => setSelected(f.id)}
-              />
-            ))}
-          </ul>
+          <div className="space-y-4">
+            <FeedSection
+              title="Patient handoffs"
+              description="Findings sent from the patient reader and waiting for clinician review."
+              empty={scope === "queue" ? "No patient handoffs in the queue." : "No reviewed patient handoffs in this filter."}
+            >
+              {patientRows.map((f) => (
+                <FindingCard
+                  key={f.id}
+                  f={f}
+                  active={selected?.kind === "finding" && f.id === selected.id}
+                  label="Patient handoff"
+                  onSelect={() => setSelected({ kind: "finding", id: f.id })}
+                />
+              ))}
+            </FeedSection>
+
+            <FeedSection
+              title="Synthetic ambient findings"
+              description="Demo traffic generated inside RadioAct to keep the queue active during a walkthrough."
+              empty="No synthetic ambient findings in this filter."
+            >
+              {syntheticRows.map((f) => (
+                <FindingCard
+                  key={f.id}
+                  f={f}
+                  active={selected?.kind === "finding" && f.id === selected.id}
+                  label="Synthetic"
+                  onSelect={() => setSelected({ kind: "finding", id: f.id })}
+                />
+              ))}
+            </FeedSection>
+
+            <FeedSection
+              title="Twin stream events"
+              description="Non-RadioAct events arriving from the granted twin stream, separated from the internal demo queue."
+              empty="No twin stream events in this filter."
+            >
+              {filteredEvents.map((event) => (
+                <TwinEventCard
+                  key={event.eventId}
+                  event={event}
+                  active={selected?.kind === "event" && event.eventId === selected.id}
+                  onSelect={() => setSelected({ kind: "event", id: event.eventId })}
+                />
+              ))}
+            </FeedSection>
+          </div>
         )}
       </div>
 
@@ -192,6 +280,8 @@ export function Clinic() {
             viewerRole="clinician"
             onReviewed={upsert}
           />
+        ) : activeEvent ? (
+          <TwinEventPanel event={activeEvent} />
         ) : (
           <div className="card p-6 text-sm text-muted">
             Select a finding to open its inspector.
@@ -205,6 +295,38 @@ export function Clinic() {
 function statusInScope(status: FindingStatus, scope: ScopeKey): boolean {
   if (scope === "queue") return status === "pending_review";
   return status === "reviewed";
+}
+
+function FeedSection({
+  title,
+  description,
+  empty,
+  children,
+}: {
+  title: string;
+  description: string;
+  empty: string;
+  children: React.ReactNode;
+}) {
+  const items = Array.isArray(children) ? children.filter(Boolean) : children ? [children] : [];
+  return (
+    <section className="card p-4 space-y-3">
+      <div>
+        <div className="flex items-center gap-2">
+          <h2 className="font-display text-lg">{title}</h2>
+          <span className="tag">{items.length}</span>
+        </div>
+        <p className="text-xs text-muted mt-1 leading-relaxed">{description}</p>
+      </div>
+      {items.length === 0 ? (
+        <div className="rounded-lg border hairline px-3 py-4 text-sm text-muted text-center">
+          {empty}
+        </div>
+      ) : (
+        <ul className="grid gap-3 md:grid-cols-2">{children}</ul>
+      )}
+    </section>
+  );
 }
 
 function ScopeBtn({
@@ -254,10 +376,12 @@ function SysBtn({
 function FindingCard({
   f,
   active,
+  label,
   onSelect,
 }: {
   f: StoredFinding;
   active: boolean;
+  label: string;
   onSelect: () => void;
 }) {
   const conf = Math.round(f.confidence * 100);
@@ -274,6 +398,7 @@ function FindingCard({
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium truncate">{f.finding}</span>
             <StatusTag status={f.status} />
+            <span className="tag">{label}</span>
             <span className="tag">{systemLabel(f.bodySystem)}</span>
           </div>
           <div className="text-xs text-muted mt-1">
@@ -297,6 +422,93 @@ function FindingCard({
       </div>
     </li>
   );
+}
+
+function TwinEventCard({
+  event,
+  active,
+  onSelect,
+}: {
+  event: TwinStreamEvent;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  const source = typeof event.data.source === "string" ? event.data.source : "Twin stream";
+  return (
+    <li
+      onClick={onSelect}
+      className={`card p-4 animate-fadeIn cursor-pointer transition-colors ${
+        active ? "ring-1 ring-accent" : "hover:bg-surface2"
+      }`}
+    >
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-medium">{event.title}</span>
+          <span className="tag accent">Twin stream</span>
+          <span className="tag">{systemLabel(event.system)}</span>
+        </div>
+        <p className="text-xs text-muted leading-relaxed">
+          Source: {source}
+        </p>
+        <div className="text-xs text-muted flex justify-between gap-3">
+          <span className="truncate">Event ID {event.eventId}</span>
+          <span>{new Date(event.occurredAt).toLocaleString()}</span>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function TwinEventPanel({ event }: { event: TwinStreamEvent }) {
+  const entries = Object.entries(event.data ?? {});
+  return (
+    <div className="card p-4 space-y-4 animate-fadeIn">
+      <div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <h3 className="font-display text-lg leading-tight">{event.title}</h3>
+          <span className="tag accent">Twin stream</span>
+          <span className="tag">{systemLabel(event.system)}</span>
+        </div>
+        <p className="text-xs text-muted mt-1">
+          Received {new Date(event.occurredAt).toLocaleString()}
+        </p>
+      </div>
+      <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5 text-sm">
+        <dt className="text-muted">Event ID</dt>
+        <dd className="font-mono text-xs break-all">{event.eventId}</dd>
+        <dt className="text-muted">System</dt>
+        <dd>{systemLabel(event.system)}</dd>
+        <dt className="text-muted">Source</dt>
+        <dd>{typeof event.data.source === "string" ? event.data.source : "Twin stream"}</dd>
+      </dl>
+      <section>
+        <div className="text-[10px] uppercase tracking-wider text-muted mb-2">Payload</div>
+        {entries.length === 0 ? (
+          <p className="text-sm text-muted">No structured payload was attached to this event.</p>
+        ) : (
+          <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5 text-sm">
+            {entries.map(([key, value]) => (
+              <div key={key} className="contents">
+                <dt className="text-muted">{key}</dt>
+                <dd className="break-words">{formatEventValue(value)}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function formatEventValue(value: unknown): string {
+  if (value == null) return "-";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
 }
 
 function ConfidenceDot({

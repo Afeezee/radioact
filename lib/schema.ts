@@ -32,14 +32,18 @@ export const findings = pgTable("findings", {
   patientId: text("patient_id")
     .notNull()
     .references(() => patients.id),
+  patientName: text("patient_name").notNull().default(""),
   ontomorphEventId: text("ontomorph_event_id"),
   finding: text("finding").notNull(),
   bodySystem: text("body_system").notNull(),
   region: text("region").notNull(),
   confidence: doublePrecision("confidence").notNull(),
   reasoning: text("reasoning"),
+  patientExplanation: text("patient_explanation"),
   clinicalContext: text("clinical_context"),
   reviewRecommended: boolean("review_recommended").notNull().default(false),
+  fmaCode: text("fma_code"),
+  fmaLabel: text("fma_label"),
   ownerUserId: text("owner_user_id").notNull().default("anon"),
   status: text("status").notNull().default("private"),
   sentAt: timestamp("sent_at", { withTimezone: true }),

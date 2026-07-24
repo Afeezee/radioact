@@ -123,6 +123,61 @@ class MemoryDB implements DB {
   }
 }
 
+async function ensureNeonSchema(client: any) {
+  await client`
+    CREATE TABLE IF NOT EXISTS patients (
+      id text PRIMARY KEY,
+      name text NOT NULL,
+      twin_grant_token text,
+      twin_id text,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+  await client`
+    CREATE TABLE IF NOT EXISTS scans (
+      id text PRIMARY KEY,
+      patient_id text NOT NULL REFERENCES patients(id),
+      image_data_url text NOT NULL,
+      image_quality text,
+      uploaded_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+  await client`
+    CREATE TABLE IF NOT EXISTS findings (
+      id text PRIMARY KEY,
+      scan_id text NOT NULL REFERENCES scans(id),
+      patient_id text NOT NULL REFERENCES patients(id),
+      patient_name text NOT NULL DEFAULT '',
+      ontomorph_event_id text,
+      finding text NOT NULL,
+      body_system text NOT NULL,
+      region text NOT NULL,
+      confidence double precision NOT NULL,
+      reasoning text,
+      patient_explanation text,
+      clinical_context text,
+      review_recommended boolean NOT NULL DEFAULT false,
+      fma_code text,
+      fma_label text,
+      owner_user_id text NOT NULL DEFAULT 'anon',
+      status text NOT NULL DEFAULT 'private',
+      sent_at timestamptz,
+      holon_concept_id double precision,
+      holon_concept_code text,
+      holon_concept_name text,
+      holon_vocabulary_id text,
+      holon_uri text,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      reviewed_at timestamptz,
+      reviewed_by text
+    )
+  `;
+  await client`ALTER TABLE findings ADD COLUMN IF NOT EXISTS patient_name text NOT NULL DEFAULT ''`;
+  await client`ALTER TABLE findings ADD COLUMN IF NOT EXISTS patient_explanation text`;
+  await client`ALTER TABLE findings ADD COLUMN IF NOT EXISTS fma_code text`;
+  await client`ALTER TABLE findings ADD COLUMN IF NOT EXISTS fma_label text`;
+}
+
 // Neon/Drizzle backend is dynamically wired only when DATABASE_URL is present,
 // so building without a DB never pulls in a live connection.
 async function makeNeonDB(): Promise<DB> {
@@ -133,9 +188,9 @@ async function makeNeonDB(): Promise<DB> {
   const client = neon(process.env.DATABASE_URL!);
   const db = drizzle(client);
 
-  // Creating a Neon client does not contact the database. Verify the required
-  // table now so getDB can use its existing memory fallback when migrations
-  // have not been applied.
+  // Provision the schema when the database is empty so findings survive server
+  // restarts instead of silently falling back to the in-memory demo store.
+  await ensureNeonSchema(client);
   await db.select({ id: schema.patients.id }).from(schema.patients).limit(1);
 
   function rowToFinding(r: any): FindingRow {
@@ -150,8 +205,11 @@ async function makeNeonDB(): Promise<DB> {
       region: r.region,
       confidence: Number(r.confidence),
       reasoning: r.reasoning ?? "",
+      patientExplanation: r.patientExplanation ?? undefined,
       clinicalContext: r.clinicalContext ?? undefined,
       reviewRecommended: !!r.reviewRecommended,
+      fmaCode: r.fmaCode ?? undefined,
+      fmaLabel: r.fmaLabel ?? undefined,
       holon: r.holonConceptCode
         ? {
             conceptId: r.holonConceptId ?? undefined,
@@ -244,14 +302,18 @@ async function makeNeonDB(): Promise<DB> {
         id: row.id,
         scanId: row.scanId,
         patientId: row.patientId,
+        patientName: row.patientName,
         ontomorphEventId: row.ontomorphEventId ?? null,
         finding: row.finding,
         bodySystem: row.bodySystem,
         region: row.region,
         confidence: row.confidence,
         reasoning: row.reasoning,
+        patientExplanation: row.patientExplanation ?? null,
         clinicalContext: row.clinicalContext ?? null,
         reviewRecommended: row.reviewRecommended,
+        fmaCode: row.fmaCode ?? null,
+        fmaLabel: row.fmaLabel ?? null,
         ownerUserId: row.ownerUserId,
         status: row.status,
         sentAt: row.sentAt ? new Date(row.sentAt) : null,
